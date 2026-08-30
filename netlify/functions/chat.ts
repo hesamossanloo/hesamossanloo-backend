@@ -63,11 +63,11 @@ function isAccessOnlyMessage(message: string, accessCode: string) {
 function accessConfirmedReply(pair: Activity["pair"]) {
   const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
   return [
-    `Access confirmed for ${couple}.`,
+    `Success. Access confirmed for ${couple}.`,
     "",
-    "Now tell me the surprise activity you want to protect. Include the city, date, approximate time, and whether it is booked or just an idea.",
+    "Now please enter at least 3 surprise activity options. For each one, include the city, date, approximate time, and whether it is booked or just an idea.",
     "",
-    "If you are choosing between options, send at least 3. I will pick one without revealing whether the choice was random, strategic, or because the secret alarm made a suspicious little beep.",
+    "I will pick one for you without revealing whether the choice was random, strategic, or because the secret alarm made a suspicious little beep.",
   ].join("\n");
 }
 
