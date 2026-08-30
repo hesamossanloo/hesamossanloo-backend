@@ -7,7 +7,7 @@ import { getActivity, getChat, saveActivity, saveChat } from "./_shared/store";
 import type { Activity, ChatMessage, ConflictResult } from "./_shared/types";
 
 type ChatRequest = {
-  sessionId: string;
+  sessionId?: string;
   accessCode: string;
   message: string;
 };
@@ -50,7 +50,8 @@ function isSecretFishing(message: string) {
   return asksForOther && asksForSecret && !text.includes("similar") && !text.includes("conflict");
 }
 
-function isAccessOnlyMessage(message: string) {
+function isAccessOnlyMessage(message: string, accessCode: string) {
+  if (message.trim() === accessCode.trim()) return true;
   const withoutAccessDetails = message
     .replace(/session\s*[:=]\s*[a-z0-9-]+/gi, "")
     .replace(/code\s*[:=]\s*[A-Za-z0-9_-]+/gi, "")
@@ -262,7 +263,7 @@ export default async (req: Request, _context: Context) => {
       return finish(prankReply());
     }
 
-    if (isAccessOnlyMessage(message)) {
+    if (isAccessOnlyMessage(message, body.accessCode)) {
       return finish(accessConfirmedReply(auth.pair));
     }
 

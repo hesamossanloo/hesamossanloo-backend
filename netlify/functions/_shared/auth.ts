@@ -17,17 +17,18 @@ export function configuredSession() {
   return requiredEnv("SECRET_KEEPER_SESSION");
 }
 
-export function authenticate(sessionId: string, accessCode: string): AuthResult {
+export function authenticate(sessionId: string | undefined, accessCode: string): AuthResult {
   const expectedSession = configuredSession();
-  if (sessionId !== expectedSession) {
+  const requestedSession = sessionId?.trim() || expectedSession;
+  if (requestedSession !== expectedSession) {
     throw new Error("Unknown session.");
   }
 
   const hjCode = requiredEnv("SECRET_KEEPER_HJ_CODE");
   const cmCode = requiredEnv("SECRET_KEEPER_CM_CODE");
 
-  if (accessCode === hjCode) return { sessionId, pair: "hj" };
-  if (accessCode === cmCode) return { sessionId, pair: "cm" };
+  if (accessCode === hjCode) return { sessionId: requestedSession, pair: "hj" };
+  if (accessCode === cmCode) return { sessionId: requestedSession, pair: "cm" };
 
   throw new Error("Invalid access code.");
 }
