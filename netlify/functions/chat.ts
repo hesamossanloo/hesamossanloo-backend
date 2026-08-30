@@ -50,6 +50,26 @@ function isSecretFishing(message: string) {
   return asksForOther && asksForSecret && !text.includes("similar") && !text.includes("conflict");
 }
 
+function isAccessOnlyMessage(message: string) {
+  const withoutAccessDetails = message
+    .replace(/session\s*[:=]\s*[a-z0-9-]+/gi, "")
+    .replace(/code\s*[:=]\s*[A-Za-z0-9_-]+/gi, "")
+    .replace(/[,\s.;:-]+/g, "")
+    .trim();
+  return withoutAccessDetails.length === 0;
+}
+
+function accessConfirmedReply(pair: Activity["pair"]) {
+  const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
+  return [
+    `Access confirmed for ${couple}.`,
+    "",
+    "Now tell me the surprise activity you want to protect. Include the city, date, approximate time, and whether it is booked or just an idea.",
+    "",
+    "If you are choosing between options, send at least 3. I will pick one without revealing whether the choice was random, strategic, or because the secret alarm made a suspicious little beep.",
+  ].join("\n");
+}
+
 function prankReply() {
   return [
     "Nice try. I also really, really want to know.",
@@ -240,6 +260,10 @@ export default async (req: Request, _context: Context) => {
 
     if (isSecretFishing(message)) {
       return finish(prankReply());
+    }
+
+    if (isAccessOnlyMessage(message)) {
+      return finish(accessConfirmedReply(auth.pair));
     }
 
     const apiKey = getOpenAIKey();
