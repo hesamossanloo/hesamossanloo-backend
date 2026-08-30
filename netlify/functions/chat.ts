@@ -67,7 +67,7 @@ function accessConfirmedReply(pair: Activity["pair"]) {
     "",
     "Now please enter at least 3 surprise activity options. For each one, include the city, date, approximate time, and whether it is booked or just an idea.",
     "",
-    "I will pick one for you without revealing whether the choice was random, strategic, or because the secret alarm made a suspicious little beep.",
+    "I will pick one without revealing anything about the other couple's private plan.",
   ].join("\n");
 }
 
@@ -77,9 +77,9 @@ function coupleLabel(pair: Activity["pair"]) {
 
 function prankReply() {
   return [
-    "Nice try. I also really, really want to know.",
+    "I cannot reveal the other couple's private plan.",
     "",
-    "But I am a professional secret fridge with a password and trust issues, so no secrets for you.",
+    "Send your own activity options and I will help you avoid conflicts without exposing their secret.",
     "",
     "[[GORILLA_PRANK]]",
   ].join("\n");
@@ -312,14 +312,14 @@ export default async (req: Request, _context: Context) => {
     const asksToReplace = /\b(replace|change|update|switch|overwrite)\b/i.test(message);
     if (ownActivity && extraction.candidates.length > 1 && !asksToReplace) {
       return finish(
-        "I already picked and saved one for you. Nice try with the option shuffle, but this vault does not run unlimited secret-probing experiments.",
+        "I already picked and saved one activity for you. If you want to change it, say that clearly and send at least 3 new activity options.",
         ownActivity,
       );
     }
 
     if (extraction.candidates.length > 1 && extraction.candidates.length < 3) {
       return finish(
-        "Give me at least 3 activity options and I will pick one for you. I will not say whether I chose it randomly, because of vibes, or because one of the secret alarms started blinking.",
+        "Please send at least 3 activity options. I will pick one without revealing anything about the other couple's private plan.",
       );
     }
 
@@ -330,14 +330,14 @@ export default async (req: Request, _context: Context) => {
       );
       if (!chosen) {
         return finish(
-          "I cannot safely pick from that set. Send me 3 more activities that are more different from each other, and I will choose without revealing what triggered my suspicious little secret radar.",
+          "I cannot safely pick from that set. Send 3 more activities that are more different from each other.",
         );
       }
       await saveActivity(chosen);
       ownActivity = chosen;
       savedActivity = chosen;
       return finish(
-        `I picked one from your list and saved it: ${chosen.title}. I refuse to say whether that was random, strategic, or because the secret radar made a dramatic beep.`,
+        `I picked one from your list and saved it: ${chosen.title}.`,
         savedActivity,
       );
     }
@@ -347,7 +347,7 @@ export default async (req: Request, _context: Context) => {
       const candidateConflict = otherActivity ? await compareActivities(candidate, otherActivity) : null;
       if (candidateConflict && candidateConflict.level !== "none") {
         return finish(
-          "That one overlaps too closely with the other private plan, so I did not save it. Send me a different idea and I will keep my tiny vault mouth shut.",
+          "That option overlaps too closely with the other private plan, so I did not save it. Send a different idea.",
         );
       }
 
@@ -363,7 +363,7 @@ export default async (req: Request, _context: Context) => {
         {
           role: "system",
           content:
-            "You are a private surprise-activity assistant for one couple. Be clear, lightly funny, and practical. If a user's single clear activity was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. If someone asks for the other couple's secret, refuse playfully. If the user gives multiple options, ask for at least 3 options and never identify which option conflicts. Keep replies short.",
+            "You are a private surprise-activity assistant for one couple. Use a clear, neutral, and practical tone. If a user's single clear activity was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. If someone asks for the other couple's secret, refuse directly. If the user gives multiple options, ask for at least 3 options and never identify which option conflicts. Keep replies short.",
         },
         {
           role: "user",
