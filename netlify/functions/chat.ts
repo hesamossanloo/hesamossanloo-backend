@@ -76,8 +76,20 @@ function extractRequestedNewCode(message: string) {
   return match?.[1] ?? null;
 }
 
-function accessConfirmedReply(pair: Activity["pair"]) {
+function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) {
   const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
+  if (usedDefaultCode) {
+    return [
+      `Success. Access confirmed for ${couple}.`,
+      "",
+      "Please change your private couple code before adding activity options.",
+      "",
+      "Use this format: change my code to NewCode123",
+      "",
+      "Make sure the new code has no whitespace. Use only letters, numbers, underscores, or hyphens.",
+    ].join("\n");
+  }
+
   return [
     `Success. Access confirmed for ${couple}.`,
     "",
@@ -298,7 +310,7 @@ export default async (req: Request, _context: Context) => {
     }
 
     if (isAccessOnlyMessage(message, body.accessCode)) {
-      return finish(accessConfirmedReply(auth.pair));
+      return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode));
     }
 
     if (isAskingOwnSavedActivity(message)) {

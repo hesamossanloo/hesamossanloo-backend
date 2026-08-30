@@ -5,6 +5,7 @@ import type { PairId } from "./types";
 type AuthResult = {
   sessionId: string;
   pair: PairId;
+  usedDefaultCode: boolean;
 };
 
 function requiredEnv(key: string) {
@@ -60,21 +61,25 @@ export async function authenticate(sessionId: string | undefined, accessCode: st
   const hjCode = requiredEnv("SECRET_KEEPER_HJ_CODE");
   const cmCode = requiredEnv("SECRET_KEEPER_CM_CODE");
 
-  if (await storedCodeMatches(requestedSession, "hj", accessCode)) return { sessionId: requestedSession, pair: "hj" };
-  if (await storedCodeMatches(requestedSession, "cm", accessCode)) return { sessionId: requestedSession, pair: "cm" };
+  if (await storedCodeMatches(requestedSession, "hj", accessCode)) {
+    return { sessionId: requestedSession, pair: "hj", usedDefaultCode: false };
+  }
+  if (await storedCodeMatches(requestedSession, "cm", accessCode)) {
+    return { sessionId: requestedSession, pair: "cm", usedDefaultCode: false };
+  }
 
   if (accessCode === hjCode) {
     if (await storedCodeExists(requestedSession, "hj")) {
       throw new Error("Hesam and Jana have changed their code. Use the new private code.");
     }
-    return { sessionId: requestedSession, pair: "hj" };
+    return { sessionId: requestedSession, pair: "hj", usedDefaultCode: true };
   }
 
   if (accessCode === cmCode) {
     if (await storedCodeExists(requestedSession, "cm")) {
       throw new Error("Christian and Meike have changed their code. Use the new private code.");
     }
-    return { sessionId: requestedSession, pair: "cm" };
+    return { sessionId: requestedSession, pair: "cm", usedDefaultCode: true };
   }
 
   throw new Error("Invalid access code.");
