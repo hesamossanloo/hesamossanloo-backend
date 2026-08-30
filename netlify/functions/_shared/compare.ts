@@ -42,16 +42,23 @@ function deterministicCompare(a: Activity | null, b: Activity | null): ConflictR
   };
 }
 
+function getOpenAIKey() {
+  const key = Netlify.env.get("OPENAI_API_KEY")?.trim();
+  if (!key || key === "paste-your-openai-api-key-here" || key === "replace-me") return null;
+  return key;
+}
+
 export async function compareActivities(
   own: Activity | null,
   other: Activity | null,
 ): Promise<ConflictResult> {
-  if (!own || !other || !Netlify.env.get("OPENAI_API_KEY")) {
+  const apiKey = getOpenAIKey();
+  if (!own || !other || !apiKey) {
     return deterministicCompare(own, other);
   }
 
   const fallback = deterministicCompare(own, other);
-  const openai = new OpenAI({ apiKey: Netlify.env.get("OPENAI_API_KEY") });
+  const openai = new OpenAI({ apiKey });
   const model = Netlify.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
 
   try {

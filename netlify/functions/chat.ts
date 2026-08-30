@@ -12,6 +12,12 @@ type ChatRequest = {
   message: string;
 };
 
+function getOpenAIKey() {
+  const key = Netlify.env.get("OPENAI_API_KEY")?.trim();
+  if (!key || key === "paste-your-openai-api-key-here" || key === "replace-me") return null;
+  return key;
+}
+
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, { status: 405 });
@@ -34,7 +40,8 @@ export default async (req: Request, _context: Context) => {
       createdAt: new Date().toISOString(),
     };
 
-    if (!Netlify.env.get("OPENAI_API_KEY")) {
+    const apiKey = getOpenAIKey();
+    if (!apiKey) {
       const assistantMessage: ChatMessage = {
         role: "assistant",
         content:
@@ -45,7 +52,7 @@ export default async (req: Request, _context: Context) => {
       return json({ reply: assistantMessage.content, conflict });
     }
 
-    const openai = new OpenAI({ apiKey: Netlify.env.get("OPENAI_API_KEY") });
+    const openai = new OpenAI({ apiKey });
     const model = Netlify.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
     const response = await openai.responses.create({
       model,
