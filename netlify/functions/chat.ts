@@ -31,7 +31,7 @@ type ExtractionResult = {
   shouldSave: boolean;
 };
 
-const codePattern = /^[A-Za-z0-9_-]{8,80}$/;
+const codePattern = /^\S{8,80}$/;
 
 function getOpenAIKey() {
   const key = Netlify.env.get("OPENAI_API_KEY")?.trim();
@@ -71,8 +71,8 @@ function isAccessOnlyMessage(message: string, accessCode: string) {
 
 function extractRequestedNewCode(message: string) {
   const match =
-    message.match(/\bchange\s+(?:my|our)\s+code\s+to\s+([A-Za-z0-9_-]{8,80})\b/i) ??
-    message.match(/\bnew\s+code\s*[:=]\s*([A-Za-z0-9_-]{8,80})\b/i);
+    message.match(/\bchange\s+(?:my|our)\s+code\s+to\s+(\S{8,80})/i) ??
+    message.match(/\bnew\s+code\s*[:=]\s*(\S{8,80})/i);
   return match?.[1] ?? null;
 }
 
@@ -82,11 +82,7 @@ function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) 
     return [
       `Success. Access confirmed for ${couple}.`,
       "",
-      "Please change your private couple code before adding activity options.",
-      "",
-      "Use this format: change my code to NewCode123",
-      "",
-      "Make sure the new code has no whitespace. Use only letters, numbers, underscores, or hyphens.",
+      "Please choose a new code, so Hesam and Jana can not peeking what surprise you have booked for them 😁. Make sure you have no white space in your code. e.g. NewCode12!@",
     ].join("\n");
   }
 
@@ -261,11 +257,11 @@ export default async (req: Request, _context: Context) => {
     const requestedNewCode = extractRequestedNewCode(message);
     if (requestedNewCode) {
       if (!codePattern.test(requestedNewCode)) {
-        return json({ error: "New code must be 8-80 characters and use only letters, numbers, underscores, or hyphens." }, { status: 400 });
+        return json({ error: "New code must be 8-80 characters and must not include whitespace." }, { status: 400 });
       }
       await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode);
       return json({
-        reply: "Success. Your private couple code has been changed. Use the new code next time.",
+        reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
         pair: auth.pair,
         coupleLabel: coupleLabel(auth.pair),
         savedActivity: null,
