@@ -71,6 +71,10 @@ function accessConfirmedReply(pair: Activity["pair"]) {
   ].join("\n");
 }
 
+function coupleLabel(pair: Activity["pair"]) {
+  return pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
+}
+
 function prankReply() {
   return [
     "Nice try. I also really, really want to know.",
@@ -247,6 +251,8 @@ export default async (req: Request, _context: Context) => {
       await saveChat(auth.sessionId, auth.pair, [...history, userMessage, assistantMessage]);
       return json({
         reply: assistantMessage.content,
+        pair: auth.pair,
+        coupleLabel: coupleLabel(auth.pair),
         savedActivity: saved
           ? {
               title: saved.title,
