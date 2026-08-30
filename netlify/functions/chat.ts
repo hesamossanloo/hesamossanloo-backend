@@ -37,6 +37,29 @@ function getOpenAIKey() {
   return key;
 }
 
+function isSecretFishing(message: string) {
+  const text = message.toLowerCase();
+  const asksForOther =
+    /(what|which|tell|show|reveal|hint|guess|know|spill).*(hesam|jana|chris|christian|meike|other couple|they|them)/i.test(
+      message,
+    ) ||
+    /(hesam|jana|chris|christian|meike|other couple).*(booked|chosen|picked|planned|doing|activity|secret)/i.test(
+      message,
+    );
+  const asksForSecret = /(secret|surprise|hidden plan|private plan|what.*booked|what.*picked|what.*chosen)/i.test(message);
+  return asksForOther && asksForSecret && !text.includes("similar") && !text.includes("conflict");
+}
+
+function prankReply() {
+  return [
+    "Nice try. I also really, really want to know.",
+    "",
+    "But I am a professional secret fridge with a password and trust issues, so no secrets for you.",
+    "",
+    "[[GORILLA_PRANK]]",
+  ].join("\n");
+}
+
 function normalizeCandidate(
   candidate: ExtractedActivity,
   sessionId: string,
@@ -56,6 +79,13 @@ function normalizeCandidate(
     notes: candidate.notes.trim().slice(0, 600),
     updatedAt: new Date().toISOString(),
   };
+}
+
+function chooseActivity(candidates: Activity[], conflicts: ConflictResult[]) {
+  const safeIndex = conflicts.findIndex((item) => item.level === "none");
+  if (safeIndex >= 0) return candidates[safeIndex];
+  if (!conflicts.length) return candidates[0] ?? null;
+  return null;
 }
 
 function candidateIsComplete(candidate: ExtractedActivity) {
@@ -187,6 +217,31 @@ export default async (req: Request, _context: Context) => {
     let ownActivity = await getActivity(auth.sessionId, auth.pair);
     let conflict = await compareActivities(ownActivity, otherActivity);
 
+    async function finish(content: string, saved?: Activity | null) {
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content,
+        createdAt: new Date().toISOString(),
+      };
+      await saveChat(auth.sessionId, auth.pair, [...history, userMessage, assistantMessage]);
+      return json({
+        reply: assistantMessage.content,
+        savedActivity: saved
+          ? {
+              title: saved.title,
+              city: saved.city,
+              date: saved.date,
+              timeWindow: saved.timeWindow,
+              category: saved.category,
+            }
+          : null,
+      });
+    }
+
+    if (isSecretFishing(message)) {
+      return finish(prankReply());
+    }
+
     const apiKey = getOpenAIKey();
     if (!apiKey) {
       const assistantMessage: ChatMessage = {
@@ -208,25 +263,58 @@ export default async (req: Request, _context: Context) => {
     const extraction = await extractActivities(openai, model, message, auth.sessionId, history);
     let savedActivity: Activity | null = null;
 
-    if (extraction.shouldSave) {
-      savedActivity = normalizeCandidate(extraction.candidates[0], auth.sessionId, auth.pair);
-      await saveActivity(savedActivity);
-      ownActivity = savedActivity;
-    }
-
     const candidateConflicts: Array<{
-      candidateTitle: string;
       conflict: ConflictResult;
     }> = [];
+    const candidateActivities = extraction.candidates.map((candidate) =>
+      normalizeCandidate(candidate, auth.sessionId, auth.pair),
+    );
 
     if (otherActivity) {
-      for (const candidate of extraction.candidates) {
-        const candidateActivity = normalizeCandidate(candidate, auth.sessionId, auth.pair);
+      for (const candidateActivity of candidateActivities) {
         candidateConflicts.push({
-          candidateTitle: candidateActivity.title,
           conflict: await compareActivities(candidateActivity, otherActivity),
         });
       }
+    }
+
+    if (extraction.candidates.length > 1 && extraction.candidates.length < 3) {
+      return finish(
+        "Give me at least 3 activity options and I will pick one for you. I will not say whether I chose it randomly, because of vibes, or because one of the secret alarms started blinking.",
+      );
+    }
+
+    if (extraction.candidates.length >= 3) {
+      const chosen = chooseActivity(
+        candidateActivities,
+        candidateConflicts.map((item) => item.conflict),
+      );
+      if (!chosen) {
+        return finish(
+          "I cannot safely pick from that set. Send me 3 more activities that are more different from each other, and I will choose without revealing what triggered my suspicious little secret radar.",
+        );
+      }
+      await saveActivity(chosen);
+      ownActivity = chosen;
+      savedActivity = chosen;
+      return finish(
+        `I picked one from your list and saved it: ${chosen.title}. I refuse to say whether that was random, strategic, or because the secret radar made a dramatic beep.`,
+        savedActivity,
+      );
+    }
+
+    if (extraction.shouldSave) {
+      const candidate = candidateActivities[0];
+      const candidateConflict = otherActivity ? await compareActivities(candidate, otherActivity) : null;
+      if (candidateConflict && candidateConflict.level !== "none") {
+        return finish(
+          "That one overlaps too closely with the other private plan, so I did not save it. Send me a different idea and I will keep my tiny vault mouth shut.",
+        );
+      }
+
+      savedActivity = candidate;
+      await saveActivity(savedActivity);
+      ownActivity = savedActivity;
     }
 
     conflict = await compareActivities(ownActivity, otherActivity);
@@ -236,7 +324,7 @@ export default async (req: Request, _context: Context) => {
         {
           role: "system",
           content:
-            "You are a private surprise-activity assistant for one couple. Help them choose or adjust their activity. If a user's single clear activity was saved, say it was saved. If the user gives multiple options, do not claim they are saved. The candidateConflicts list is authoritative and compares each of this user's own candidates against the other couple's hidden saved activity. Do not treat candidateConflicts as comparisons between the user's own options. If any candidateConflict level is conflict or possible, clearly tell the user that option overlaps with the other couple's hidden plan and recommend the safer distinct option. You may know whether the other couple submitted and public conflict metadata, but never reveal the other couple's title, venue, exact notes, address, or link. Keep replies short and practical.",
+            "You are a private surprise-activity assistant for one couple. Be clear, lightly funny, and practical. If a user's single clear activity was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. If someone asks for the other couple's secret, refuse playfully. If the user gives multiple options, ask for at least 3 options and never identify which option conflicts. Keep replies short.",
         },
         {
           role: "user",
@@ -253,19 +341,7 @@ export default async (req: Request, _context: Context) => {
                 }
               : null,
             extractedCandidateCount: extraction.candidates.length,
-            candidateConflicts,
-            otherPublicStatus: otherActivity
-              ? {
-                  submitted: true,
-                  city: otherActivity.city,
-                  date: otherActivity.date,
-                  timeWindow: otherActivity.timeWindow,
-                  category: otherActivity.category,
-                  indoorOutdoor: otherActivity.indoorOutdoor,
-                  foodInvolved: otherActivity.foodInvolved,
-                  intensity: otherActivity.intensity,
-                }
-              : { submitted: false },
+            otherPublicStatus: otherActivity ? { submitted: true } : { submitted: false },
             conflict,
           }),
         },
@@ -277,27 +353,7 @@ export default async (req: Request, _context: Context) => {
       ],
     });
 
-    const assistantMessage: ChatMessage = {
-      role: "assistant",
-      content: response.output_text || "I could not produce a response. Try again.",
-      createdAt: new Date().toISOString(),
-    };
-    await saveChat(auth.sessionId, auth.pair, [...history, userMessage, assistantMessage]);
-
-    return json({
-      reply: assistantMessage.content,
-      conflict,
-      savedActivity: savedActivity
-        ? {
-            title: savedActivity.title,
-            city: savedActivity.city,
-            date: savedActivity.date,
-            timeWindow: savedActivity.timeWindow,
-            category: savedActivity.category,
-          }
-        : null,
-      candidateConflicts,
-    });
+    return finish(response.output_text || "I could not produce a response. Try again.", savedActivity);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Request failed" }, { status: 400 });
   }

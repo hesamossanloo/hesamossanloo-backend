@@ -26,6 +26,10 @@ function summary(pair: PairSummary["pair"], submitted: boolean, activity?: Await
   };
 }
 
+function privateSummary(pair: PairSummary["pair"], submitted: boolean): PairSummary {
+  return { pair, submitted };
+}
+
 export default async (req: Request, _context: Context) => {
   if (req.method === "OPTIONS") return options();
   if (req.method !== "POST") {
@@ -43,8 +47,16 @@ export default async (req: Request, _context: Context) => {
     return json({
       pair: auth.pair,
       own: summary(auth.pair, Boolean(ownActivity), ownActivity),
-      other: summary(other, Boolean(otherActivity), otherActivity),
-      conflict,
+      other: privateSummary(other, Boolean(otherActivity)),
+      conflict: {
+        level: conflict.level,
+        publicMessage:
+          conflict.level === "waiting"
+            ? "Waiting for both couples to submit an activity."
+            : "I checked the private plans without revealing the other side's details.",
+        reasons: [],
+        suggestions: [],
+      },
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Request failed" }, { status: 400 });
