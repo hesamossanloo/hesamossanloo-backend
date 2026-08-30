@@ -1,8 +1,7 @@
 const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Origin": "https://hesam.info",
-  "Vary": "Origin",
+  "Access-Control-Allow-Origin": "*",
 };
 
 export function json(data: unknown, init: ResponseInit = {}) {
