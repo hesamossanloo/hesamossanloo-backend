@@ -46,8 +46,15 @@ function isSecretFishing(message: string) {
     /(hesam|jana|chris|christian|meike|other couple).*(booked|chosen|picked|planned|doing|activity|secret)/i.test(
       message,
     );
-  const asksForSecret = /(secret|surprise|hidden plan|private plan|what.*booked|what.*picked|what.*chosen)/i.test(message);
+  const asksForSecret =
+    /(secret|surprise|hidden plan|private plan|what.*book|what.*chosen|what.*chose|what.*pick|what.*picked|what.*planned|what.*plan)/i.test(
+      message,
+    );
   return asksForOther && asksForSecret && !text.includes("similar") && !text.includes("conflict");
+}
+
+function isAskingOwnSavedActivity(message: string) {
+  return /(which|what).*(you pick|you picked|you choose|you chose|saved|book|we need to book)/i.test(message);
 }
 
 function isAccessOnlyMessage(message: string, accessCode: string) {
@@ -271,6 +278,16 @@ export default async (req: Request, _context: Context) => {
       return finish(accessConfirmedReply(auth.pair));
     }
 
+    if (isAskingOwnSavedActivity(message)) {
+      if (ownActivity) {
+        return finish(
+          `The activity saved for you is: ${ownActivity.title}.`,
+          ownActivity,
+        );
+      }
+      return finish("No activity has been saved for you yet. Send at least 3 activity options and I will pick one.");
+    }
+
     const apiKey = getOpenAIKey();
     if (!apiKey) {
       const assistantMessage: ChatMessage = {
@@ -310,7 +327,7 @@ export default async (req: Request, _context: Context) => {
     const asksToReplace = /\b(replace|change|update|switch|overwrite)\b/i.test(message);
     if (ownActivity && extraction.candidates.length > 1 && !asksToReplace) {
       return finish(
-        "I already picked and saved one activity for you. If you want to change it, say that clearly and send at least 3 new activity options.",
+        `I already picked and saved this activity for you: ${ownActivity.title}. If you want to change it, say that clearly and send at least 3 new activity options.`,
         ownActivity,
       );
     }
