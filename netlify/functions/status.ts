@@ -1,6 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
 import { authenticate, otherPair } from "./_shared/auth";
-import { json, readJson } from "./_shared/http";
+import { json, options, readJson } from "./_shared/http";
 import { compareActivities } from "./_shared/compare";
 import { getActivity } from "./_shared/store";
 import type { PairSummary } from "./_shared/types";
@@ -27,6 +27,7 @@ function summary(pair: PairSummary["pair"], submitted: boolean, activity?: Await
 }
 
 export default async (req: Request, _context: Context) => {
+  if (req.method === "OPTIONS") return options();
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
@@ -52,5 +53,5 @@ export default async (req: Request, _context: Context) => {
 
 export const config: Config = {
   path: "/api/status",
-  method: "POST",
+  method: ["POST", "OPTIONS"],
 };

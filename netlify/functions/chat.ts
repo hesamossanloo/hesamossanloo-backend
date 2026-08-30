@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { Config, Context } from "@netlify/functions";
 import { authenticate, otherPair } from "./_shared/auth";
 import { compareActivities } from "./_shared/compare";
-import { json, readJson } from "./_shared/http";
+import { json, options, readJson } from "./_shared/http";
 import { getActivity, getChat, saveChat } from "./_shared/store";
 import type { ChatMessage } from "./_shared/types";
 
@@ -19,6 +19,7 @@ function getOpenAIKey() {
 }
 
 export default async (req: Request, _context: Context) => {
+  if (req.method === "OPTIONS") return options();
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
@@ -105,5 +106,5 @@ export default async (req: Request, _context: Context) => {
 
 export const config: Config = {
   path: "/api/chat",
-  method: "POST",
+  method: ["POST", "OPTIONS"],
 };
