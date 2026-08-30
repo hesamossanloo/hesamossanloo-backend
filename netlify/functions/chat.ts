@@ -82,7 +82,7 @@ function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) 
     return [
       `Success. Access confirmed for ${couple}.`,
       "",
-      "Please choose a new code, so Hesam and Jana can not peeking what surprise you have booked for them 😁. Make sure you have no white space in your code. e.g. NewCode12!@",
+      "Please choose a new code, so Hesam and Jana can't peek what surprise you have booked for them 😁. Make sure you have no white space in your code. e.g. NewCode12!@",
     ].join("\n");
   }
 
