@@ -1,6 +1,14 @@
 import OpenAI from "openai";
 import type { Activity, ConflictResult } from "./types";
 
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 function deterministicCompare(a: Activity | null, b: Activity | null): ConflictResult {
   if (!a || !b) {
     return {
@@ -11,10 +19,23 @@ function deterministicCompare(a: Activity | null, b: Activity | null): ConflictR
     };
   }
 
+  const titleA = normalize(a.title);
+  const titleB = normalize(b.title);
+  const sameOrNestedTitle =
+    titleA.length > 4 && titleB.length > 4 && (titleA === titleB || titleA.includes(titleB) || titleB.includes(titleA));
   const sameCity = a.city.trim().toLowerCase() === b.city.trim().toLowerCase();
   const sameDate = a.date.trim().toLowerCase() === b.date.trim().toLowerCase();
   const sameCategory = a.category.trim().toLowerCase() === b.category.trim().toLowerCase();
   const sameWindow = a.timeWindow.trim().toLowerCase() === b.timeWindow.trim().toLowerCase();
+
+  if (sameOrNestedTitle) {
+    return {
+      level: "conflict",
+      publicMessage: "Conflict: this appears to be the same surprise activity. Choose a different activity.",
+      reasons: ["The hidden activity identity is too similar."],
+      suggestions: ["Pick a different venue or a clearly different activity type."],
+    };
+  }
 
   if (sameCity && sameDate && sameCategory) {
     return {
@@ -69,7 +90,7 @@ export async function compareActivities(
         {
           role: "system",
           content:
-            "You compare two surprise activities. Never reveal either exact title, venue, address, link, or identifying secret details. Return only JSON.",
+            "You compare two surprise activities. Same or substantially similar activity title, venue, attraction, workshop, or provider is a conflict even when dates or times differ. Never reveal either exact title, venue, address, link, or identifying secret details. Return only JSON.",
         },
         {
           role: "user",
