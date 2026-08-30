@@ -71,18 +71,23 @@ function candidateIsComplete(candidate: ExtractedActivity) {
   );
 }
 
-async function extractActivities(openai: OpenAI, model: string, message: string): Promise<ExtractionResult> {
+async function extractActivities(
+  openai: OpenAI,
+  model: string,
+  message: string,
+  sessionId: string,
+): Promise<ExtractionResult> {
   const response = await openai.responses.create({
     model,
     input: [
       {
         role: "system",
         content:
-          "Extract surprise activity details from a user message. Return JSON only. If the user mentions multiple alternatives, return each as a separate candidate and set shouldSave false. Set shouldSave true only when there is exactly one clear booked or planned activity with enough details to compare.",
+          "Extract surprise activity details from a user message. Return JSON only. If the user mentions multiple alternatives, return each as a separate candidate and set shouldSave false. Set shouldSave true only when there is exactly one clear booked or planned activity with enough details to compare. Preserve dates as the user expresses them when possible, such as '13 Oct' or '14 Oct'. If you must add a year, infer it from the session id, not from today's date.",
       },
       {
         role: "user",
-        content: message,
+        content: JSON.stringify({ sessionId, message }),
       },
     ],
     text: {
@@ -192,7 +197,7 @@ export default async (req: Request, _context: Context) => {
       return json({ error: "Missing required environment variable: OPENAI_MODEL" }, { status: 500 });
     }
 
-    const extraction = await extractActivities(openai, model, message);
+    const extraction = await extractActivities(openai, model, message, auth.sessionId);
     let savedActivity: Activity | null = null;
 
     if (extraction.shouldSave) {
