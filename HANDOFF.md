@@ -58,9 +58,13 @@ SECRET_KEEPER_CM_CODE
 CI/CD values for GitHub Actions:
 
 ```text
-NETLIFY_SITE_ID=7ba32ff3-933b-4af6-af9f-d5793a533b04
 NETLIFY_AUTH_TOKEN
 ```
+
+The GitHub Actions workflow hardcodes the non-secret Netlify site id
+`7ba32ff3-933b-4af6-af9f-d5793a533b04`. It typechecks and builds on every push.
+The deploy step is skipped unless the GitHub repository secret `NETLIFY_AUTH_TOKEN`
+is configured, to avoid noisy failed workflow emails.
 
 Local `.env` exists and is ignored by git.
 

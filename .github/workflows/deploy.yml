@@ -28,8 +28,21 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check deploy configuration
+        id: deploy_config
+        run: |
+          if [ -n "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping Netlify deploy because GitHub secret NETLIFY_AUTH_TOKEN is not configured."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
       - name: Deploy
+        if: steps.deploy_config.outputs.ready == 'true'
         run: npx netlify-cli deploy --prod --no-build --dir=dist --functions=netlify/functions --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN"
         env:
-          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID || secrets.NETLIFY_SITE_ID }}
+          NETLIFY_SITE_ID: 7ba32ff3-933b-4af6-af9f-d5793a533b04
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
