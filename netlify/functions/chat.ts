@@ -77,9 +77,7 @@ function coupleLabel(pair: Activity["pair"]) {
 
 function prankReply() {
   return [
-    "I cannot reveal the other couple's private plan.",
-    "",
-    "Send your own activity options and I will help you avoid conflicts without exposing their secret.",
+    "Nice try, but here is a picture of your childhood as a hint 😂",
     "",
     "[[GORILLA_PRANK]]",
   ].join("\n");
