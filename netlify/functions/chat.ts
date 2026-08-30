@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { Config, Context } from "@netlify/functions";
-import { authenticate, otherPair } from "./_shared/auth";
+import { authenticate, changeAccessCode, otherPair } from "./_shared/auth";
 import { compareActivities } from "./_shared/compare";
 import { json, options, readJson } from "./_shared/http";
 import { getActivity, getChat, saveActivity, saveChat } from "./_shared/store";
@@ -30,6 +30,8 @@ type ExtractionResult = {
   candidates: ExtractedActivity[];
   shouldSave: boolean;
 };
+
+const codePattern = /^[A-Za-z0-9_-]{8,80}$/;
 
 function getOpenAIKey() {
   const key = Netlify.env.get("OPENAI_API_KEY")?.trim();
@@ -65,6 +67,13 @@ function isAccessOnlyMessage(message: string, accessCode: string) {
     .replace(/[,\s.;:-]+/g, "")
     .trim();
   return withoutAccessDetails.length === 0;
+}
+
+function extractRequestedNewCode(message: string) {
+  const match =
+    message.match(/\bchange\s+(?:my|our)\s+code\s+to\s+([A-Za-z0-9_-]{8,80})\b/i) ??
+    message.match(/\bnew\s+code\s*[:=]\s*([A-Za-z0-9_-]{8,80})\b/i);
+  return match?.[1] ?? null;
 }
 
 function accessConfirmedReply(pair: Activity["pair"]) {
@@ -233,9 +242,23 @@ export default async (req: Request, _context: Context) => {
 
   try {
     const body = await readJson<ChatRequest>(req);
-    const auth = authenticate(body.sessionId, body.accessCode);
+    const auth = await authenticate(body.sessionId, body.accessCode);
     const message = body.message.trim().slice(0, 1000);
     if (!message) return json({ error: "Message is required." }, { status: 400 });
+
+    const requestedNewCode = extractRequestedNewCode(message);
+    if (requestedNewCode) {
+      if (!codePattern.test(requestedNewCode)) {
+        return json({ error: "New code must be 8-80 characters and use only letters, numbers, underscores, or hyphens." }, { status: 400 });
+      }
+      await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode);
+      return json({
+        reply: "Success. Your private couple code has been changed. Use the new code next time.",
+        pair: auth.pair,
+        coupleLabel: coupleLabel(auth.pair),
+        savedActivity: null,
+      });
+    }
 
     const userMessage: ChatMessage = {
       role: "user",

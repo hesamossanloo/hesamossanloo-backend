@@ -40,3 +40,10 @@ export type ConflictResult = {
   reasons: string[];
   suggestions: string[];
 };
+
+export type PairCredential = {
+  pair: PairId;
+  sessionId: string;
+  codeHash: string;
+  updatedAt: string;
+};

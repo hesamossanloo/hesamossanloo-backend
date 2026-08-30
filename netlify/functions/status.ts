@@ -38,7 +38,7 @@ export default async (req: Request, _context: Context) => {
 
   try {
     const body = await readJson<StatusRequest>(req);
-    const auth = authenticate(body.sessionId, body.accessCode);
+    const auth = await authenticate(body.sessionId, body.accessCode);
     const other = otherPair(auth.pair);
     const ownActivity = await getActivity(auth.sessionId, auth.pair);
     const otherActivity = await getActivity(auth.sessionId, other);

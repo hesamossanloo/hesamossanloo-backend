@@ -33,7 +33,7 @@ export default async (req: Request, _context: Context) => {
 
   try {
     const body = await readJson<ActivityRequest>(req);
-    const auth = authenticate(body.sessionId, body.accessCode);
+    const auth = await authenticate(body.sessionId, body.accessCode);
     const input = body.activity;
 
     const required = [
