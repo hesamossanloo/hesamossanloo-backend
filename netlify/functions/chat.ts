@@ -228,7 +228,7 @@ export default async (req: Request, _context: Context) => {
         {
           role: "system",
           content:
-            "You are a private surprise-activity assistant for one couple. Help them choose or adjust their activity. If a user's single clear activity was saved, say it was saved. If the user gives multiple options, do not claim they are saved; compare the options using the provided safe conflict results and ask them to choose. You may know whether the other couple submitted and public conflict metadata, but never reveal the other couple's title, venue, exact notes, address, or link. Keep replies short and practical.",
+            "You are a private surprise-activity assistant for one couple. Help them choose or adjust their activity. If a user's single clear activity was saved, say it was saved. If the user gives multiple options, do not claim they are saved. The candidateConflicts list is authoritative and compares each of this user's own candidates against the other couple's hidden saved activity. Do not treat candidateConflicts as comparisons between the user's own options. If any candidateConflict level is conflict or possible, clearly tell the user that option overlaps with the other couple's hidden plan and recommend the safer distinct option. You may know whether the other couple submitted and public conflict metadata, but never reveal the other couple's title, venue, exact notes, address, or link. Keep replies short and practical.",
         },
         {
           role: "user",
@@ -276,7 +276,20 @@ export default async (req: Request, _context: Context) => {
     };
     await saveChat(auth.sessionId, auth.pair, [...history, userMessage, assistantMessage]);
 
-    return json({ reply: assistantMessage.content, conflict });
+    return json({
+      reply: assistantMessage.content,
+      conflict,
+      savedActivity: savedActivity
+        ? {
+            title: savedActivity.title,
+            city: savedActivity.city,
+            date: savedActivity.date,
+            timeWindow: savedActivity.timeWindow,
+            category: savedActivity.category,
+          }
+        : null,
+      candidateConflicts,
+    });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Request failed" }, { status: 400 });
   }
