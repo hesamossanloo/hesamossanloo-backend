@@ -11,16 +11,6 @@
   to = "/.netlify/functions/:splat"
   status = 200
 
-[[redirects]]
-  from = "/secret-keeper"
-  to = "/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/secret-keeper/*"
-  to = "/index.html"
-  status = 200
-
 [[headers]]
   for = "/*"
   [headers.values]

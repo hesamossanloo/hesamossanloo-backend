@@ -4,7 +4,7 @@ Small Netlify app for coordinating secrets between two parties without revealing
 
 ## Free Architecture
 
-- Static frontend in `public/`
+- API-only Netlify site with a minimal non-chat landing page
 - Netlify Functions in `netlify/functions/`
 - Netlify Blobs as the free persistence layer
 - OpenAI API key stored only as a Netlify environment variable

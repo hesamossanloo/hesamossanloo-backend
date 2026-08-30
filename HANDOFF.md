@@ -13,7 +13,9 @@
 
 ## Current Backend State
 
-The backend is a small Netlify Functions app with static assets in `public/`.
+The backend is a small API-only Netlify Functions app. The chatbot UI lives in
+the portfolio repo at `https://hesam.info/secret-keeper/`; the Netlify backend
+site only exposes API functions and a minimal non-chat landing page.
 
 Implemented endpoints:
 
