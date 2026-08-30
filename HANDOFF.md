@@ -9,8 +9,7 @@
 
 - Portfolio: `https://hesam.info`
 - Secret Keeper page: `https://hesam.info/secret-keeper/`
-- Backend API / active Netlify site: `https://secret-keeper-chatbot.netlify.app`
-- Unused Vera-team Netlify project was renamed to `secret-keeper-service`
+- Backend API Netlify site: `https://secret-keeper-service.netlify.app`
 
 ## Current Backend State
 
@@ -49,22 +48,14 @@ Runtime env vars for Netlify:
 
 ```text
 OPENAI_API_KEY
-OPENAI_MODEL=gpt-4.1-mini
-SECRET_KEEPER_SESSION=japan-2026
+OPENAI_MODEL
+SECRET_KEEPER_SESSION
 SECRET_KEEPER_HJ_CODE
 SECRET_KEEPER_CM_CODE
 ```
 
-CI/CD values for GitHub Actions:
-
-```text
-NETLIFY_AUTH_TOKEN
-```
-
-The GitHub Actions workflow hardcodes the non-secret Netlify site id
-`7ba32ff3-933b-4af6-af9f-d5793a533b04`. It typechecks and builds on every push.
-The deploy step is skipped unless the GitHub repository secret `NETLIFY_AUTH_TOKEN`
-is configured, to avoid noisy failed workflow emails.
+Netlify is connected directly to the GitHub repo and handles CI/CD. There is no
+GitHub Actions deployment workflow in the repo.
 
 Local `.env` exists and is ignored by git.
 
@@ -72,8 +63,8 @@ Local `.env` exists and is ignored by git.
 
 1. User opens `https://hesam.info/secret-keeper/`.
 2. Static chat page loads from the portfolio site.
-3. User provides session and code, e.g. `session: japan-2026 code: ...`.
-4. Frontend calls `https://secret-keeper-chatbot.netlify.app/api/chat`.
+3. User provides the shared session name and their couple code.
+4. Frontend calls the Netlify backend API.
 5. Backend authenticates the code into one of two fixed pair ids.
 6. Backend reads stored activity/chat data from Netlify Blobs.
 7. Backend calls OpenAI if `OPENAI_API_KEY` is configured.

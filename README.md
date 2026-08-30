@@ -15,26 +15,20 @@ Set these in Netlify:
 
 ```bash
 OPENAI_API_KEY=paste-your-openai-api-key-here
-SECRET_KEEPER_SESSION=japan-2026
+SECRET_KEEPER_SESSION=your-session-name
 SECRET_KEEPER_HJ_CODE=private-code-for-hesam-jana
 SECRET_KEEPER_CM_CODE=private-code-for-christian-meike
-OPENAI_MODEL=gpt-4.1-mini
+OPENAI_MODEL=your-openai-model
 ```
 
-`OPENAI_MODEL` is optional. The app defaults to `gpt-4.1-mini`. Placeholder OpenAI keys are treated as not configured, so the app will keep working with deterministic checks until you paste the real key in Netlify.
+Placeholder OpenAI keys are treated as not configured, so the app will keep
+working with deterministic checks until you paste the real key in Netlify.
 
 ## CI/CD
 
-The repository includes a GitHub Actions workflow that builds and deploys to Netlify on every push to `main` or `master`.
-
-Set these GitHub repository settings after creating the remote repo:
-
-```bash
-NETLIFY_SITE_ID=7ba32ff3-933b-4af6-af9f-d5793a533b04
-NETLIFY_AUTH_TOKEN=your-netlify-personal-access-token
-```
-
-Use `NETLIFY_SITE_ID` as a repository variable if you prefer. Keep `NETLIFY_AUTH_TOKEN` as a repository secret.
+Netlify deploys this repo directly from GitHub. Do not configure a separate
+GitHub Actions deploy workflow unless Netlify Git deploys are intentionally
+disabled.
 
 ## Local Dev
 

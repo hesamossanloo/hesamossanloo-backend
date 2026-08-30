@@ -59,7 +59,8 @@ export async function compareActivities(
 
   const fallback = deterministicCompare(own, other);
   const openai = new OpenAI({ apiKey });
-  const model = Netlify.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const model = Netlify.env.get("OPENAI_MODEL");
+  if (!model) return fallback;
 
   try {
     const response = await openai.responses.create({

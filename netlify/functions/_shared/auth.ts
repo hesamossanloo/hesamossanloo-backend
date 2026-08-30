@@ -14,7 +14,7 @@ function requiredEnv(key: string) {
 }
 
 export function configuredSession() {
-  return Netlify.env.get("SECRET_KEEPER_SESSION") || "japan-2026";
+  return requiredEnv("SECRET_KEEPER_SESSION");
 }
 
 export function authenticate(sessionId: string, accessCode: string): AuthResult {

@@ -54,7 +54,10 @@ export default async (req: Request, _context: Context) => {
     }
 
     const openai = new OpenAI({ apiKey });
-    const model = Netlify.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+    const model = Netlify.env.get("OPENAI_MODEL");
+    if (!model) {
+      return json({ error: "Missing required environment variable: OPENAI_MODEL" }, { status: 500 });
+    }
     const response = await openai.responses.create({
       model,
       input: [

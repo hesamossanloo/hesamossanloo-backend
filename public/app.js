@@ -1,5 +1,5 @@
 const state = {
-  sessionId: localStorage.getItem("sk_session") || "japan-2026",
+  sessionId: localStorage.getItem("sk_session") || "",
   accessCode: localStorage.getItem("sk_code") || "",
   pair: null,
 };
