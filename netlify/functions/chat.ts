@@ -278,6 +278,14 @@ export default async (req: Request, _context: Context) => {
       }
     }
 
+    const asksToReplace = /\b(replace|change|update|switch|overwrite)\b/i.test(message);
+    if (ownActivity && extraction.candidates.length > 1 && !asksToReplace) {
+      return finish(
+        "I already picked and saved one for you. Nice try with the option shuffle, but this vault does not run unlimited secret-probing experiments.",
+        ownActivity,
+      );
+    }
+
     if (extraction.candidates.length > 1 && extraction.candidates.length < 3) {
       return finish(
         "Give me at least 3 activity options and I will pick one for you. I will not say whether I chose it randomly, because of vibes, or because one of the secret alarms started blinking.",
