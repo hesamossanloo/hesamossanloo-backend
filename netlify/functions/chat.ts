@@ -9,6 +9,7 @@ import type { Activity, ChatMessage, ConflictResult } from "./_shared/types";
 type ChatRequest = {
   sessionId?: string;
   accessCode: string;
+  pair?: Activity["pair"];
   message: string;
 };
 
@@ -31,7 +32,7 @@ type ExtractionResult = {
   shouldSave: boolean;
 };
 
-const codePattern = /^\S{8,80}$/;
+const codePattern = /^\S{4,80}$/;
 
 function getOpenAIKey() {
   const key = Netlify.env.get("OPENAI_API_KEY")?.trim();
@@ -71,8 +72,8 @@ function isAccessOnlyMessage(message: string, accessCode: string) {
 
 function extractRequestedNewCode(message: string) {
   const match =
-    message.match(/\bchange\s+(?:my|our)\s+code\s+to\s+(\S{8,80})/i) ??
-    message.match(/\bnew\s+code\s*[:=]\s*(\S{8,80})/i);
+    message.match(/\bchange\s+(?:my|our)\s+code\s+to\s+(\S{4,80})/i) ??
+    message.match(/\bnew\s+code\s*[:=]\s*(\S{4,80})/i);
   return match?.[1] ?? null;
 }
 
@@ -250,16 +251,16 @@ export default async (req: Request, _context: Context) => {
 
   try {
     const body = await readJson<ChatRequest>(req);
-    const auth = await authenticate(body.sessionId, body.accessCode);
+    const auth = await authenticate(body.sessionId, body.accessCode, body.pair);
     const message = body.message.trim().slice(0, 1000);
     if (!message) return json({ error: "Message is required." }, { status: 400 });
 
     const requestedNewCode = extractRequestedNewCode(message);
     if (requestedNewCode) {
       if (!codePattern.test(requestedNewCode)) {
-        return json({ error: "New code must be 8-80 characters and must not include whitespace." }, { status: 400 });
+        return json({ error: "New code must be 4-80 characters and must not include whitespace." }, { status: 400 });
       }
-      await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode);
+      await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode, body.pair);
       return json({
         reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
         pair: auth.pair,

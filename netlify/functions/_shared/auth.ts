@@ -40,8 +40,24 @@ async function storedCodeExists(sessionId: string, pair: PairId) {
   return Boolean(await getCredential(sessionId, pair));
 }
 
-export async function changeAccessCode(sessionId: string | undefined, accessCode: string, newCode: string) {
-  const auth = await authenticate(sessionId, accessCode);
+function ensureExpectedPair(auth: AuthResult, expectedPair?: PairId) {
+  if (expectedPair && auth.pair !== expectedPair) {
+    throw new Error("This code does not match the selected person.");
+  }
+  return auth;
+}
+
+export async function hasChangedAccessCode(sessionId: string | undefined, pair: PairId) {
+  const expectedSession = configuredSession();
+  const requestedSession = sessionId?.trim() || expectedSession;
+  if (requestedSession !== expectedSession) {
+    throw new Error("Unknown session.");
+  }
+  return Boolean(await getCredential(requestedSession, pair));
+}
+
+export async function changeAccessCode(sessionId: string | undefined, accessCode: string, newCode: string, expectedPair?: PairId) {
+  const auth = await authenticate(sessionId, accessCode, expectedPair);
   await saveCredential({
     pair: auth.pair,
     sessionId: auth.sessionId,
@@ -51,7 +67,11 @@ export async function changeAccessCode(sessionId: string | undefined, accessCode
   return auth;
 }
 
-export async function authenticate(sessionId: string | undefined, accessCode: string): Promise<AuthResult> {
+export async function authenticate(
+  sessionId: string | undefined,
+  accessCode: string,
+  expectedPair?: PairId,
+): Promise<AuthResult> {
   const expectedSession = configuredSession();
   const requestedSession = sessionId?.trim() || expectedSession;
   if (requestedSession !== expectedSession) {
@@ -62,24 +82,24 @@ export async function authenticate(sessionId: string | undefined, accessCode: st
   const cmCode = requiredEnv("SECRET_KEEPER_CM_CODE");
 
   if (await storedCodeMatches(requestedSession, "hj", accessCode)) {
-    return { sessionId: requestedSession, pair: "hj", usedDefaultCode: false };
+    return ensureExpectedPair({ sessionId: requestedSession, pair: "hj", usedDefaultCode: false }, expectedPair);
   }
   if (await storedCodeMatches(requestedSession, "cm", accessCode)) {
-    return { sessionId: requestedSession, pair: "cm", usedDefaultCode: false };
+    return ensureExpectedPair({ sessionId: requestedSession, pair: "cm", usedDefaultCode: false }, expectedPair);
   }
 
   if (accessCode === hjCode) {
     if (await storedCodeExists(requestedSession, "hj")) {
       throw new Error("Hesam and Jana have changed their code. Use the new private code.");
     }
-    return { sessionId: requestedSession, pair: "hj", usedDefaultCode: true };
+    return ensureExpectedPair({ sessionId: requestedSession, pair: "hj", usedDefaultCode: true }, expectedPair);
   }
 
   if (accessCode === cmCode) {
     if (await storedCodeExists(requestedSession, "cm")) {
       throw new Error("Christian and Meike have changed their code. Use the new private code.");
     }
-    return { sessionId: requestedSession, pair: "cm", usedDefaultCode: true };
+    return ensureExpectedPair({ sessionId: requestedSession, pair: "cm", usedDefaultCode: true }, expectedPair);
   }
 
   throw new Error("Invalid access code.");
