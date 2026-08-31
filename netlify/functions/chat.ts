@@ -265,6 +265,8 @@ export default async (req: Request, _context: Context) => {
         reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
         pair: auth.pair,
         coupleLabel: coupleLabel(auth.pair),
+        codeChanged: true,
+        needsCodeChange: false,
         savedActivity: null,
       });
     }
@@ -290,6 +292,7 @@ export default async (req: Request, _context: Context) => {
         reply: assistantMessage.content,
         pair: auth.pair,
         coupleLabel: coupleLabel(auth.pair),
+        needsCodeChange: auth.pair === "cm" && auth.usedDefaultCode,
         savedActivity: saved
           ? {
               title: saved.title,
