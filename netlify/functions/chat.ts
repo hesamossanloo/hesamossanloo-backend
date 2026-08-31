@@ -70,10 +70,13 @@ function isAccessOnlyMessage(message: string, accessCode: string) {
   return withoutAccessDetails.length === 0;
 }
 
-function extractRequestedNewCode(message: string) {
+function extractRequestedNewCode(message: string, allowBareCode = false) {
+  const trimmed = message.trim();
+  if (allowBareCode && codePattern.test(trimmed)) return trimmed;
   const match =
     message.match(/\bchange\s+(?:my|our)\s+code\s+to\s+(\S{4,80})/i) ??
-    message.match(/\bnew\s+code\s*[:=]\s*(\S{4,80})/i);
+    message.match(/\bnew\s+code\s*[:=]\s*(\S{4,80})/i) ??
+    message.match(/\bnew\s+code\s+is\s+(\S{4,80})/i);
   return match?.[1] ?? null;
 }
 
@@ -255,31 +258,12 @@ export default async (req: Request, _context: Context) => {
     const message = body.message.trim().slice(0, 1000);
     if (!message) return json({ error: "Message is required." }, { status: 400 });
 
-    const requestedNewCode = extractRequestedNewCode(message);
-    if (requestedNewCode) {
-      if (!codePattern.test(requestedNewCode)) {
-        return json({ error: "New code must be 4-80 characters and must not include whitespace." }, { status: 400 });
-      }
-      await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode, body.pair);
-      return json({
-        reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
-        pair: auth.pair,
-        coupleLabel: coupleLabel(auth.pair),
-        codeChanged: true,
-        needsCodeChange: false,
-        savedActivity: null,
-      });
-    }
-
     const userMessage: ChatMessage = {
       role: "user",
       content: message,
       createdAt: new Date().toISOString(),
     };
     const history = await getChat(auth.sessionId, auth.pair);
-    const otherActivity = await getActivity(auth.sessionId, otherPair(auth.pair));
-    let ownActivity = await getActivity(auth.sessionId, auth.pair);
-    let conflict = await compareActivities(ownActivity, otherActivity);
 
     async function finish(content: string, saved?: Activity | null) {
       const assistantMessage: ChatMessage = {
@@ -305,12 +289,47 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    if (isSecretFishing(message)) {
-      return finish(prankReply());
-    }
-
     if (isAccessOnlyMessage(message, body.accessCode)) {
       return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode));
+    }
+
+    const requestedNewCode = extractRequestedNewCode(message, auth.pair === "cm" && auth.usedDefaultCode);
+    if (auth.pair === "cm" && auth.usedDefaultCode && !isAccessOnlyMessage(message, body.accessCode)) {
+      if (!requestedNewCode || !codePattern.test(requestedNewCode)) {
+        return json({ error: "Please enter a new code with 4-80 characters and no whitespace." }, { status: 400 });
+      }
+      await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode, body.pair);
+      return json({
+        reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
+        pair: auth.pair,
+        coupleLabel: coupleLabel(auth.pair),
+        codeChanged: true,
+        needsCodeChange: false,
+        savedActivity: null,
+      });
+    }
+
+    if (requestedNewCode) {
+      if (!codePattern.test(requestedNewCode)) {
+        return json({ error: "New code must be 4-80 characters and must not include whitespace." }, { status: 400 });
+      }
+      await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode, body.pair);
+      return json({
+        reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
+        pair: auth.pair,
+        coupleLabel: coupleLabel(auth.pair),
+        codeChanged: true,
+        needsCodeChange: false,
+        savedActivity: null,
+      });
+    }
+
+    const otherActivity = await getActivity(auth.sessionId, otherPair(auth.pair));
+    let ownActivity = await getActivity(auth.sessionId, auth.pair);
+    let conflict = await compareActivities(ownActivity, otherActivity);
+
+    if (isSecretFishing(message)) {
+      return finish(prankReply());
     }
 
     if (isAskingOwnSavedActivity(message)) {
