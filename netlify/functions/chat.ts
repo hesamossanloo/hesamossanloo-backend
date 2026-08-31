@@ -79,7 +79,7 @@ function extractRequestedNewCode(message: string) {
 
 function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) {
   const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
-  if (usedDefaultCode) {
+  if (pair === "cm" && usedDefaultCode) {
     return [
       `Success. Access confirmed for ${couple}.`,
       "",
