@@ -29,9 +29,7 @@ export default async (req: Request, _context: Context) => {
       pair: body.pair,
       coupleLabel: coupleLabel(body.pair),
       changed,
-      prompt: changed
-        ? `Ok ${coupleLabel(body.pair)}, please enter the new code you chose yourself.`
-        : `Ok ${coupleLabel(body.pair)}, please enter the code Hesam has given you like this: code: your-code`,
+      prompt: `Ok ${coupleLabel(body.pair)}, please enter the default code Hesam gave you like this: code: your-code. If you already created your own private code, you can enter that instead.`,
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Request failed" }, { status: 400 });

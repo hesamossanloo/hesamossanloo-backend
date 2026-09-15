@@ -36,10 +36,6 @@ async function storedCodeMatches(sessionId: string, pair: PairId, accessCode: st
   return hashesMatch(credential.codeHash, hashCode(accessCode));
 }
 
-async function storedCodeExists(sessionId: string, pair: PairId) {
-  return Boolean(await getCredential(sessionId, pair));
-}
-
 function ensureExpectedPair(auth: AuthResult, expectedPair?: PairId) {
   if (expectedPair && auth.pair !== expectedPair) {
     throw new Error("This code does not match the selected person.");
@@ -89,16 +85,10 @@ export async function authenticate(
   }
 
   if (accessCode === hjCode) {
-    if (await storedCodeExists(requestedSession, "hj")) {
-      throw new Error("Hesam and Jana have changed their code. Use the new private code.");
-    }
     return ensureExpectedPair({ sessionId: requestedSession, pair: "hj", usedDefaultCode: true }, expectedPair);
   }
 
   if (accessCode === cmCode) {
-    if (await storedCodeExists(requestedSession, "cm")) {
-      throw new Error("Christian and Meike have changed their code. Use the new private code.");
-    }
     return ensureExpectedPair({ sessionId: requestedSession, pair: "cm", usedDefaultCode: true }, expectedPair);
   }
 

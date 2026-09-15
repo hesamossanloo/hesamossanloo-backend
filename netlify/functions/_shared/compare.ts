@@ -13,9 +13,9 @@ function deterministicCompare(a: Activity | null, b: Activity | null): ConflictR
   if (!a || !b) {
     return {
       level: "waiting",
-      publicMessage: "Waiting for both couples to submit an activity.",
+      publicMessage: "Waiting for both couples to submit a day plan.",
       reasons: [],
-      suggestions: ["Submit your activity details privately, then check again."],
+      suggestions: ["Submit your Tokyo and Osaka day-plan details privately, then check again."],
     };
   }
 
@@ -31,18 +31,18 @@ function deterministicCompare(a: Activity | null, b: Activity | null): ConflictR
   if (sameOrNestedTitle) {
     return {
       level: "conflict",
-      publicMessage: "Conflict: this appears to be the same surprise activity. Choose a different activity.",
+      publicMessage: "Conflict: this appears to be the same surprise day plan. Choose a different plan.",
       reasons: ["The hidden activity identity is too similar."],
-      suggestions: ["Pick a different venue or a clearly different activity type."],
+      suggestions: ["Pick different venues, timing, or a clearly different plan."],
     };
   }
 
   if (sameCity && sameDate && sameCategory) {
     return {
       level: "conflict",
-      publicMessage: "Conflict: both plans are too close. One couple should choose a different activity.",
+      publicMessage: "Conflict: both day plans are too close. One couple should choose a different plan.",
       reasons: ["Same city, same date, and same broad category."],
-      suggestions: ["Change the date, city, or category to protect the surprise."],
+      suggestions: ["Change the date, city, timing, or plan theme to protect the surprise."],
     };
   }
 
@@ -51,13 +51,13 @@ function deterministicCompare(a: Activity | null, b: Activity | null): ConflictR
       level: "possible",
       publicMessage: "Possible conflict: the plans overlap enough that one couple should adjust.",
       reasons: ["Some metadata overlaps, but the exact other activity remains hidden."],
-      suggestions: ["Move to another time window or choose a different category."],
+      suggestions: ["Move to another time window or choose a different plan theme."],
     };
   }
 
   return {
     level: "none",
-    publicMessage: "No conflict found. The surprise plans look distinct.",
+    publicMessage: "No conflict found. The surprise day plans look distinct.",
     reasons: ["The visible metadata does not suggest the same activity."],
     suggestions: ["You can proceed, assuming the hidden venue details are not intentionally identical."],
   };
@@ -90,13 +90,13 @@ export async function compareActivities(
         {
           role: "system",
           content:
-            "You compare two surprise activities. Same or substantially similar activity title, venue, attraction, workshop, or provider is a conflict even when dates or times differ. Never reveal either exact title, venue, address, link, or identifying secret details. Return only JSON.",
+            "You compare two surprise day plans. Same or substantially similar activity title, venue, attraction, workshop, provider, or day itinerary is a conflict even when dates or times differ. Never reveal either exact title, venue, address, link, or identifying secret details. Return only JSON.",
         },
         {
           role: "user",
           content: JSON.stringify({
             instruction:
-              "Decide if these two surprise activities conflict. Use hidden titles only for comparison; do not reveal them. Keep publicMessage safe for both couples.",
+              "Decide if these two surprise day plans conflict. Use hidden titles and notes only for comparison; do not reveal them. Keep publicMessage safe for both couples.",
             allowedLevels: ["none", "possible", "conflict"],
             activityA: own,
             activityB: other,

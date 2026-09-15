@@ -52,7 +52,7 @@ export default async (req: Request, _context: Context) => {
         level: conflict.level,
         publicMessage:
           conflict.level === "waiting"
-            ? "Waiting for both couples to submit an activity."
+            ? "Waiting for both couples to submit a day plan."
             : "I checked the private plans without revealing the other side's details.",
         reasons: [],
         suggestions: [],

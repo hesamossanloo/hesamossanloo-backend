@@ -82,20 +82,21 @@ function extractRequestedNewCode(message: string, allowBareCode = false) {
 
 function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) {
   const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
-  if (pair === "cm" && usedDefaultCode) {
+  if (usedDefaultCode) {
+    const otherCouple = pair === "hj" ? "Christian and Meike" : "Hesam and Jana";
     return [
       `Success. Access confirmed for ${couple}.`,
       "",
-      "Please choose a new code, so Hesam and Jana can't peek what surprise you have booked for them 😁. Make sure you have no white space in your code. e.g. NewCode12!@",
+      `Please choose a new private code, so ${otherCouple} cannot peek at what you have planned. Make sure the code has no whitespace. Example: NewCode12!@`,
     ].join("\n");
   }
 
   return [
     `Success. Access confirmed for ${couple}.`,
     "",
-    "Now please enter at least 3 surprise activity options. For each one, include the city, date, approximate time, and whether it is booked or just an idea.",
+    "Now please enter your surprise day-plan options. Each option should cover one full day in Tokyo and one full day in Osaka, from morning to evening.",
     "",
-    "I will pick one without revealing anything about the other couple's private plan.",
+    "Include dates, approximate times, neighborhoods or venues, and whether anything is already booked. I will choose a safe option without revealing anything about the other couple's private plan.",
   ].join("\n");
 }
 
@@ -165,7 +166,7 @@ async function extractActivities(
       {
         role: "system",
         content:
-          "Extract surprise activity details from a user message. Return JSON only. If the user mentions multiple alternatives, return each as a separate candidate and set shouldSave false. Set shouldSave true only when there is exactly one clear booked or planned activity with enough details to compare. Use recent chat context only to resolve short confirmations such as 'yes, save that one'; if the confirmation is ambiguous, do not save. Preserve dates as the user expresses them when possible, such as '13 Oct' or '14 Oct'. If you must add a year, infer it from the session id, not from today's date.",
+          "Extract surprise day-plan details from a user message. Return JSON only. The surprise is a full day in Tokyo and a full day in Osaka, from morning to evening. If the user mentions multiple day-plan alternatives, return each as a separate candidate and set shouldSave false. Set shouldSave true only when there is exactly one clear booked or planned day plan with enough details to compare. Put a concise name for the complete plan in title, use city for Tokyo/Osaka scope, date for the relevant date or dates, timeWindow for the full-day range, and notes for the morning-to-evening itinerary. Use recent chat context only to resolve short confirmations such as 'yes, save that one'; if the confirmation is ambiguous, do not save. Preserve dates as the user expresses them when possible, such as '13 Oct' or '14 Oct'. If you must add a year, infer it from the session id, not from today's date.",
       },
       {
         role: "user",
@@ -276,7 +277,7 @@ export default async (req: Request, _context: Context) => {
         reply: assistantMessage.content,
         pair: auth.pair,
         coupleLabel: coupleLabel(auth.pair),
-        needsCodeChange: auth.pair === "cm" && auth.usedDefaultCode,
+        needsCodeChange: auth.usedDefaultCode,
         savedActivity: saved
           ? {
               title: saved.title,
@@ -293,14 +294,14 @@ export default async (req: Request, _context: Context) => {
       return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode));
     }
 
-    const requestedNewCode = extractRequestedNewCode(message, auth.pair === "cm" && auth.usedDefaultCode);
-    if (auth.pair === "cm" && auth.usedDefaultCode && !isAccessOnlyMessage(message, body.accessCode)) {
+    const requestedNewCode = extractRequestedNewCode(message, auth.usedDefaultCode);
+    if (auth.usedDefaultCode && !isAccessOnlyMessage(message, body.accessCode)) {
       if (!requestedNewCode || !codePattern.test(requestedNewCode)) {
         return json({ error: "Please enter a new code with 4-80 characters and no whitespace." }, { status: 400 });
       }
       await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode, body.pair);
       return json({
-        reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
+        reply: "Success. Your new private code is saved now. Please suggest your surprise day-plan options. Each option should cover one full day in Tokyo and one full day in Osaka, from morning to evening. Include dates, approximate times, neighborhoods or venues, and whether anything is already booked.",
         pair: auth.pair,
         coupleLabel: coupleLabel(auth.pair),
         codeChanged: true,
@@ -315,7 +316,7 @@ export default async (req: Request, _context: Context) => {
       }
       await changeAccessCode(body.sessionId, body.accessCode, requestedNewCode, body.pair);
       return json({
-        reply: "Success. Your new code is saved now. Please suggest 3 activities with the city, date, and approximate time. I will pick one for you without revealing anything.",
+        reply: "Success. Your new private code is saved now. Please suggest your surprise day-plan options. Each option should cover one full day in Tokyo and one full day in Osaka, from morning to evening. Include dates, approximate times, neighborhoods or venues, and whether anything is already booked.",
         pair: auth.pair,
         coupleLabel: coupleLabel(auth.pair),
         codeChanged: true,
@@ -339,7 +340,7 @@ export default async (req: Request, _context: Context) => {
           ownActivity,
         );
       }
-      return finish("No activity has been saved for you yet. Send at least 3 activity options and I will pick one.");
+      return finish("No day plan has been saved for you yet. Send your Tokyo and Osaka full-day plan options and I will pick one.");
     }
 
     const apiKey = getOpenAIKey();
@@ -347,7 +348,7 @@ export default async (req: Request, _context: Context) => {
       const assistantMessage: ChatMessage = {
         role: "assistant",
         content:
-          "OpenAI is not configured yet. I can still save activity details and run basic metadata conflict checks once both couples submit.",
+          "OpenAI is not configured yet. I can still save day-plan details and run basic metadata conflict checks once both couples submit.",
         createdAt: new Date().toISOString(),
       };
       await saveChat(auth.sessionId, auth.pair, [...history, userMessage, assistantMessage]);
@@ -381,14 +382,14 @@ export default async (req: Request, _context: Context) => {
     const asksToReplace = /\b(replace|change|update|switch|overwrite)\b/i.test(message);
     if (ownActivity && extraction.candidates.length > 1 && !asksToReplace) {
       return finish(
-        `I already picked and saved this activity for you: ${ownActivity.title}. If you want to change it, say that clearly and send at least 3 new activity options.`,
+        `I already picked and saved this day plan for you: ${ownActivity.title}. If you want to change it, say that clearly and send new Tokyo and Osaka full-day plan options.`,
         ownActivity,
       );
     }
 
     if (extraction.candidates.length > 1 && extraction.candidates.length < 3) {
       return finish(
-        "Please send at least 3 activity options. I will pick one without revealing anything about the other couple's private plan.",
+        "Please send your Tokyo and Osaka full-day plan options. I will pick one without revealing anything about the other couple's private plan.",
       );
     }
 
@@ -399,7 +400,7 @@ export default async (req: Request, _context: Context) => {
       );
       if (!chosen) {
         return finish(
-          "I cannot safely pick from that set. Send 3 more activities that are more different from each other.",
+          "I cannot safely pick from that set. Send more day-plan options that are more different from each other.",
         );
       }
       await saveActivity(chosen);
@@ -416,7 +417,7 @@ export default async (req: Request, _context: Context) => {
       const candidateConflict = otherActivity ? await compareActivities(candidate, otherActivity) : null;
       if (candidateConflict && candidateConflict.level !== "none") {
         return finish(
-          "That option overlaps too closely with the other private plan, so I did not save it. Send a different idea.",
+          "That option overlaps too closely with the other private plan, so I did not save it. Send a different day-plan idea.",
         );
       }
 
@@ -432,7 +433,7 @@ export default async (req: Request, _context: Context) => {
         {
           role: "system",
           content:
-            "You are a private surprise-activity assistant for one couple. Use a clear, neutral, and practical tone. If a user's single clear activity was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. If someone asks for the other couple's secret, refuse directly. If the user gives multiple options, ask for at least 3 options and never identify which option conflicts. Keep replies short.",
+            "You are a private surprise day-plan assistant for one couple. Use a clear, neutral, and practical tone. The surprise is no longer a single activity: each couple plans a full day in Tokyo and a full day in Osaka, from morning to evening. If a user's clear day plan was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. If someone asks for the other couple's secret, refuse directly. If the user gives multiple options, ask for full Tokyo and Osaka day-plan details and never identify which option conflicts. Keep replies short.",
         },
         {
           role: "user",
