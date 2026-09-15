@@ -29,7 +29,9 @@ export default async (req: Request, _context: Context) => {
       pair: body.pair,
       coupleLabel: coupleLabel(body.pair),
       changed,
-      prompt: `Ok ${coupleLabel(body.pair)}, please enter the code Hesam gave you like this: code: your-code.`,
+      prompt: changed
+        ? `Ok ${coupleLabel(body.pair)}, please enter your private code.`
+        : `Ok ${coupleLabel(body.pair)}, please enter the code Hesam gave you like this: code: your-code.`,
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Request failed" }, { status: 400 });
