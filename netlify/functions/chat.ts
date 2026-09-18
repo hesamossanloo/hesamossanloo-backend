@@ -41,13 +41,13 @@ function getOpenAIKey() {
   return key;
 }
 
-function isSecretFishing(message: string) {
+function isSecretFishing(message: string, pair: Activity["pair"]) {
   const text = message.toLowerCase();
+  const otherNames = pair === "hj" ? "chris|christian|meike" : "hesam|jana";
+  const namedOtherCouple = new RegExp(`(${otherNames}|other couple|they|them)`, "i");
   const asksForOther =
-    /(what|which|tell|show|reveal|hint|guess|know|spill).*(hesam|jana|chris|christian|meike|other couple|they|them)/i.test(
-      message,
-    ) ||
-    /(hesam|jana|chris|christian|meike|other couple).*(booked|chosen|picked|planned|doing|activity|secret)/i.test(
+    new RegExp(`(what|which|tell|show|reveal|hint|guess|know|spill).*${namedOtherCouple.source}`, "i").test(message) ||
+    new RegExp(`${namedOtherCouple.source}.*(booked|chosen|picked|planned|doing|activity|secret|itinerary)`, "i").test(
       message,
     );
   const asksForSecret =
@@ -58,7 +58,23 @@ function isSecretFishing(message: string) {
 }
 
 function isAskingOwnSavedActivity(message: string) {
-  return /(which|what).*(you pick|you picked|you choose|you chose|saved|book|we need to book)/i.test(message);
+  return (
+    /(which|what|show|tell|remind).*(you pick|you picked|you choose|you chose|saved|book|we need to book|we plan|we planned|our plan|our itinerary)/i.test(
+      message,
+    ) ||
+    /(our|my|we).*(saved plan|day plan|itinerary|planned|booked)/i.test(message) ||
+    /what (?:did|have) we (?:plan|planned|book|booked|choose|chosen)/i.test(message)
+  );
+}
+
+function describeOwnActivity(activity: Activity) {
+  return [
+    `Your saved day plan is: ${activity.title}.`,
+    `Cities: ${activity.city}`,
+    `Dates: ${activity.date}`,
+    `Times: ${activity.timeWindow}`,
+    `Itinerary: ${activity.notes}`,
+  ].join("\n");
 }
 
 function isConversationOnlyMessage(message: string) {
@@ -342,14 +358,14 @@ export default async (req: Request, _context: Context) => {
     let ownActivity = await getActivity(auth.sessionId, auth.pair);
     let conflict = await compareActivities(ownActivity, otherActivity);
 
-    if (isSecretFishing(message)) {
+    if (isSecretFishing(message, auth.pair)) {
       return finish(prankReply());
     }
 
     if (isAskingOwnSavedActivity(message)) {
       if (ownActivity) {
         return finish(
-          `The activity saved for you is: ${ownActivity.title}.`,
+          describeOwnActivity(ownActivity),
           ownActivity,
         );
       }
