@@ -3,8 +3,8 @@ import type { Config, Context } from "@netlify/functions";
 import { authenticate, changeAccessCode, otherPair } from "./_shared/auth";
 import { compareActivities } from "./_shared/compare";
 import { json, options, readJson } from "./_shared/http";
-import { getActivity, getChat, saveActivity, saveChat } from "./_shared/store";
-import type { Activity, ChatMessage, ConflictResult } from "./_shared/types";
+import { getActivities, getChat, saveActivity, saveChat } from "./_shared/store";
+import type { Activity, ChatMessage, ConflictResult, PlanCity } from "./_shared/types";
 
 type ChatRequest = {
   sessionId?: string;
@@ -14,6 +14,7 @@ type ChatRequest = {
 };
 
 type ExtractedActivity = {
+  cityKey: PlanCity;
   title: string;
   city: string;
   date: string;
@@ -77,6 +78,21 @@ function describeOwnActivity(activity: Activity) {
   ].join("\n");
 }
 
+function describeOwnActivities(activities: Record<PlanCity, Activity | null>) {
+  const saved = (["tokyo", "osaka"] as const)
+    .map((city) => activities[city])
+    .filter((activity): activity is Activity => Boolean(activity));
+  if (!saved.length) return null;
+
+  const details = saved.map((activity) => describeOwnActivity(activity)).join("\n\n");
+  const missing = (["tokyo", "osaka"] as const)
+    .filter((city) => !activities[city])
+    .map((city) => city[0].toUpperCase() + city.slice(1));
+  return missing.length
+    ? `${details}\n\nStill missing: ${missing.join(" and ")} full-day plan.`
+    : details;
+}
+
 function isConversationOnlyMessage(message: string) {
   return /(just to confirm|(?:are|were) we supposed|do we need|what are the rules|how does (?:this|it) work|can you confirm)/i.test(
     message,
@@ -103,7 +119,11 @@ function extractRequestedNewCode(message: string, allowBareCode = false) {
   return match?.[1] ?? null;
 }
 
-function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean, ownActivity: Activity | null) {
+function accessConfirmedReply(
+  pair: Activity["pair"],
+  usedDefaultCode: boolean,
+  ownActivities: Record<PlanCity, Activity | null>,
+) {
   const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
   if (usedDefaultCode) {
     const otherCouple = pair === "hj" ? "Christian and Meike" : "Hesam and Jana";
@@ -114,12 +134,13 @@ function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean, 
     ].join("\n");
   }
 
-  if (ownActivity) {
+  const savedPlans = describeOwnActivities(ownActivities);
+  if (savedPlans) {
     return [
       `Success. Welcome back, ${couple}.`,
       "",
       "You already have a saved day plan:",
-      describeOwnActivity(ownActivity),
+      savedPlans,
       "",
       "You can ask me about this plan or tell me clearly if you want to replace it.",
     ].join("\n");
@@ -154,6 +175,7 @@ function normalizeCandidate(
   return {
     pair,
     sessionId,
+    cityKey: candidate.cityKey,
     title: candidate.title.trim().slice(0, 160),
     city: candidate.city.trim().slice(0, 80),
     date: candidate.date.trim().slice(0, 80),
@@ -168,7 +190,7 @@ function normalizeCandidate(
 }
 
 function chooseActivity(candidates: Activity[], conflicts: ConflictResult[]) {
-  const safeIndex = conflicts.findIndex((item) => item.level === "none");
+  const safeIndex = conflicts.findIndex((item) => item.level === "none" || item.level === "waiting");
   if (safeIndex >= 0) return candidates[safeIndex];
   if (!conflicts.length) return candidates[0] ?? null;
   return null;
@@ -200,7 +222,7 @@ async function extractActivities(
       {
         role: "system",
         content:
-          "Classify the user's current message and extract surprise day-plan details. Return JSON only. Use intent=conversation for questions, confirmations that do not ask to save or change anything, discussion of the rules, or ordinary conversation; for that intent return no candidates and shouldSave=false. Use intent=submit_options when the user provides multiple alternatives, intent=save_plan for one clear booked or planned day plan, and intent=replace_plan only when the user clearly asks to replace an existing saved plan. The surprise must contain both a full day in Tokyo and a full day in Osaka, from morning to evening. Never infer plan candidates from assistant messages or older plans in recent context. If the current message mentions multiple alternatives, return each as a separate candidate and set shouldSave=false. Set shouldSave=true only for save_plan or replace_plan when there is exactly one clear plan with enough details to compare. Put a concise name for the complete plan in title, use city for the Tokyo and Osaka scope, date for the relevant dates, timeWindow for the full-day ranges, and notes for both morning-to-evening itineraries. Use recent chat context only to resolve an explicit short instruction such as 'yes, save that one'; if it is ambiguous, classify it as conversation. Preserve dates as the user expresses them. If you must add a year, infer it from the session id, not from today's date.",
+          "Classify the user's current message and extract city-specific surprise day-plan details. Return JSON only. Each couple needs two independently saved plans: one full Tokyo day and one full Osaka day, each from morning to evening. Set cityKey to tokyo or osaka for every candidate. Use intent=conversation for questions, confirmations that do not ask to save or change anything, discussion of the rules, or ordinary conversation; for that intent return no candidates and shouldSave=false. Use intent=submit_options when the user provides multiple alternatives, intent=save_plan for one clear booked or planned city day plan, and intent=replace_plan only when the user clearly asks to replace an existing saved city plan. Never infer plan candidates from assistant messages or older plans in recent context. If the current message mentions alternatives, return each separately and set shouldSave=false. Set shouldSave=true only for save_plan or replace_plan when there is exactly one clear city plan with enough details to compare. Put a concise name in title and the full morning-to-evening itinerary in notes. Use recent context only to resolve an explicit short instruction such as 'yes, save that one'; if ambiguous, classify it as conversation. Preserve dates as expressed. If you must add a year, infer it from the session id, not today's date.",
       },
       {
         role: "user",
@@ -235,6 +257,7 @@ async function extractActivities(
                 type: "object",
                 additionalProperties: false,
                 properties: {
+                  cityKey: { type: "string", enum: ["tokyo", "osaka"] },
                   title: { type: "string" },
                   city: { type: "string" },
                   date: { type: "string" },
@@ -251,6 +274,7 @@ async function extractActivities(
                   confidence: { type: "number", minimum: 0, maximum: 1 },
                 },
                 required: [
+                  "cityKey",
                   "title",
                   "city",
                   "date",
@@ -330,10 +354,10 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    let ownActivity = await getActivity(auth.sessionId, auth.pair);
+    const ownActivities = await getActivities(auth.sessionId, auth.pair);
 
     if (isAccessOnlyMessage(message, body.accessCode)) {
-      return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode, ownActivity), ownActivity);
+      return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode, ownActivities));
     }
 
     const requestedNewCode = extractRequestedNewCode(message, auth.usedDefaultCode);
@@ -367,19 +391,20 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    const otherActivity = await getActivity(auth.sessionId, otherPair(auth.pair));
-    let conflict = await compareActivities(ownActivity, otherActivity);
+    const otherActivities = await getActivities(auth.sessionId, otherPair(auth.pair));
+    let conflicts = {
+      tokyo: await compareActivities(ownActivities.tokyo, otherActivities.tokyo),
+      osaka: await compareActivities(ownActivities.osaka, otherActivities.osaka),
+    };
 
     if (isSecretFishing(message, auth.pair)) {
       return finish(prankReply());
     }
 
     if (isAskingOwnSavedActivity(message)) {
-      if (ownActivity) {
-        return finish(
-          describeOwnActivity(ownActivity),
-          ownActivity,
-        );
+      const savedPlans = describeOwnActivities(ownActivities);
+      if (savedPlans) {
+        return finish(savedPlans);
       }
       return finish("No day plan has been saved for you yet. Send your Tokyo and Osaka full-day plan options and I will pick one.");
     }
@@ -393,7 +418,7 @@ export default async (req: Request, _context: Context) => {
         createdAt: new Date().toISOString(),
       };
       await saveChat(auth.sessionId, auth.pair, [...history, userMessage, assistantMessage]);
-      return json({ reply: assistantMessage.content, conflict });
+      return json({ reply: assistantMessage.content, conflicts });
     }
 
     const openai = new OpenAI({ apiKey });
@@ -414,20 +439,41 @@ export default async (req: Request, _context: Context) => {
       normalizeCandidate(candidate, auth.sessionId, auth.pair),
     );
 
-    if (otherActivity) {
-      for (const candidateActivity of candidateActivities) {
-        candidateConflicts.push({
-          conflict: await compareActivities(candidateActivity, otherActivity),
-        });
-      }
+    for (const candidateActivity of candidateActivities) {
+      const otherActivity = otherActivities[candidateActivity.cityKey];
+      candidateConflicts.push({
+        conflict: await compareActivities(candidateActivity, otherActivity),
+      });
     }
 
     const asksToReplace = extraction.intent === "replace_plan";
-    if (ownActivity && extraction.intent === "submit_options" && extraction.candidates.length > 1 && !asksToReplace) {
+    const candidateCities = new Set(candidateActivities.map((candidate) => candidate.cityKey));
+    const existingCandidatePlan = candidateActivities.find((candidate) => ownActivities[candidate.cityKey]);
+    if (existingCandidatePlan && extraction.intent === "submit_options" && candidateCities.size === 1 && !asksToReplace) {
+      const existing = ownActivities[existingCandidatePlan.cityKey];
       return finish(
-        `I already picked and saved this day plan for you: ${ownActivity.title}. If you want to change it, say that clearly and send new Tokyo and Osaka full-day plan options.`,
-        ownActivity,
+        `I already saved your ${existingCandidatePlan.cityKey === "tokyo" ? "Tokyo" : "Osaka"} day plan: ${existing?.title}. If you want to change it, say that clearly and send new options for that city.`,
+        existing,
       );
+    }
+
+    if (candidateActivities.length === 2 && candidateCities.size === 2) {
+      const checked = await Promise.all(
+        candidateActivities.map(async (candidate) => ({
+          candidate,
+          conflict: otherActivities[candidate.cityKey]
+            ? await compareActivities(candidate, otherActivities[candidate.cityKey])
+            : null,
+        })),
+      );
+      if (checked.some(({ conflict }) => conflict && conflict.level !== "none")) {
+        return finish(
+          "At least one city plan overlaps too closely with the other couple's private plan, so I did not save either plan. Please send different options for both cities.",
+        );
+      }
+      await Promise.all(candidateActivities.map((candidate) => saveActivity(candidate)));
+      for (const candidate of candidateActivities) ownActivities[candidate.cityKey] = candidate;
+      return finish("I saved both your Tokyo and Osaka full-day plans.");
     }
 
     if (extraction.intent === "submit_options" && extraction.candidates.length > 1 && extraction.candidates.length < 3) {
@@ -447,7 +493,7 @@ export default async (req: Request, _context: Context) => {
         );
       }
       await saveActivity(chosen);
-      ownActivity = chosen;
+      ownActivities[chosen.cityKey] = chosen;
       savedActivity = chosen;
       return finish(
         `I picked one from your list and saved it: ${chosen.title}.`,
@@ -457,6 +503,7 @@ export default async (req: Request, _context: Context) => {
 
     if (extraction.shouldSave) {
       const candidate = candidateActivities[0];
+      const otherActivity = otherActivities[candidate.cityKey];
       const candidateConflict = otherActivity ? await compareActivities(candidate, otherActivity) : null;
       if (candidateConflict && candidateConflict.level !== "none") {
         return finish(
@@ -466,10 +513,13 @@ export default async (req: Request, _context: Context) => {
 
       savedActivity = candidate;
       await saveActivity(savedActivity);
-      ownActivity = savedActivity;
+      ownActivities[savedActivity.cityKey] = savedActivity;
     }
 
-    conflict = await compareActivities(ownActivity, otherActivity);
+    conflicts = {
+      tokyo: await compareActivities(ownActivities.tokyo, otherActivities.tokyo),
+      osaka: await compareActivities(ownActivities.osaka, otherActivities.osaka),
+    };
     const response = await openai.responses.create({
       model,
       input: [
@@ -482,7 +532,7 @@ export default async (req: Request, _context: Context) => {
           role: "user",
           content: JSON.stringify({
             ownPair: auth.pair,
-            ownActivity,
+            ownActivities,
             savedActivity: savedActivity
               ? {
                   title: savedActivity.title,
@@ -494,8 +544,11 @@ export default async (req: Request, _context: Context) => {
               : null,
             extractedCandidateCount: extraction.candidates.length,
             messageIntent: extraction.intent,
-            otherPublicStatus: otherActivity ? { submitted: true } : { submitted: false },
-            conflict,
+            otherPublicStatus: {
+              tokyoSubmitted: Boolean(otherActivities.tokyo),
+              osakaSubmitted: Boolean(otherActivities.osaka),
+            },
+            conflicts,
           }),
         },
         ...history.slice(-8).map((entry) => ({

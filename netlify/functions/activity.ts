@@ -35,6 +35,15 @@ export default async (req: Request, _context: Context) => {
     const body = await readJson<ActivityRequest>(req);
     const auth = await authenticate(body.sessionId, body.accessCode);
     const input = body.activity;
+    const normalizedCity = input.city.trim().toLowerCase();
+    const cityKey = normalizedCity.includes("tokyo")
+      ? "tokyo"
+      : normalizedCity.includes("osaka")
+        ? "osaka"
+        : null;
+    if (!cityKey) {
+      return json({ error: "City must be Tokyo or Osaka." }, { status: 400 });
+    }
 
     const required = [
       input.title,
@@ -53,6 +62,7 @@ export default async (req: Request, _context: Context) => {
     const activity: Activity = {
       pair: auth.pair,
       sessionId: auth.sessionId,
+      cityKey,
       title: clean(input.title, 160),
       city: clean(input.city, 80),
       date: clean(input.date, 80),
@@ -66,7 +76,7 @@ export default async (req: Request, _context: Context) => {
     };
 
     await saveActivity(activity);
-    const otherActivity = await getActivity(auth.sessionId, otherPair(auth.pair));
+    const otherActivity = await getActivity(auth.sessionId, otherPair(auth.pair), cityKey);
     const conflict = await compareActivities(activity, otherActivity);
 
     return json({

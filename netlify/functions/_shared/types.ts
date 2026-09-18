@@ -1,8 +1,10 @@
 export type PairId = "hj" | "cm";
+export type PlanCity = "tokyo" | "osaka";
 
 export type Activity = {
   pair: PairId;
   sessionId: string;
+  cityKey: PlanCity;
   title: string;
   city: string;
   date: string;
