@@ -61,6 +61,12 @@ function isAskingOwnSavedActivity(message: string) {
   return /(which|what).*(you pick|you picked|you choose|you chose|saved|book|we need to book)/i.test(message);
 }
 
+function isConversationOnlyMessage(message: string) {
+  return /(just to confirm|(?:are|were) we supposed|do we need|what are the rules|how does (?:this|it) work|can you confirm)/i.test(
+    message,
+  );
+}
+
 function isAccessOnlyMessage(message: string, accessCode: string) {
   if (message.trim() === accessCode.trim()) return true;
   const withoutAccessDetails = message
@@ -368,7 +374,9 @@ export default async (req: Request, _context: Context) => {
       return json({ error: "Missing required environment variable: OPENAI_MODEL" }, { status: 500 });
     }
 
-    const extraction = await extractActivities(openai, model, message, auth.sessionId, history);
+    const extraction: ExtractionResult = isConversationOnlyMessage(message)
+      ? { intent: "conversation", candidates: [], shouldSave: false }
+      : await extractActivities(openai, model, message, auth.sessionId, history);
     let savedActivity: Activity | null = null;
 
     const candidateConflicts: Array<{
