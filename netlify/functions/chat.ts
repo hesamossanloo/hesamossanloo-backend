@@ -28,6 +28,7 @@ type ExtractedActivity = {
 };
 
 type ExtractionResult = {
+  intent: "conversation" | "submit_options" | "save_plan" | "replace_plan";
   candidates: ExtractedActivity[];
   shouldSave: boolean;
 };
@@ -166,7 +167,7 @@ async function extractActivities(
       {
         role: "system",
         content:
-          "Extract surprise day-plan details from a user message. Return JSON only. The surprise is a full day in Tokyo and a full day in Osaka, from morning to evening. If the user mentions multiple day-plan alternatives, return each as a separate candidate and set shouldSave false. Set shouldSave true only when there is exactly one clear booked or planned day plan with enough details to compare. Put a concise name for the complete plan in title, use city for Tokyo/Osaka scope, date for the relevant date or dates, timeWindow for the full-day range, and notes for the morning-to-evening itinerary. Use recent chat context only to resolve short confirmations such as 'yes, save that one'; if the confirmation is ambiguous, do not save. Preserve dates as the user expresses them when possible, such as '13 Oct' or '14 Oct'. If you must add a year, infer it from the session id, not from today's date.",
+          "Classify the user's current message and extract surprise day-plan details. Return JSON only. Use intent=conversation for questions, confirmations that do not ask to save or change anything, discussion of the rules, or ordinary conversation; for that intent return no candidates and shouldSave=false. Use intent=submit_options when the user provides multiple alternatives, intent=save_plan for one clear booked or planned day plan, and intent=replace_plan only when the user clearly asks to replace an existing saved plan. The surprise must contain both a full day in Tokyo and a full day in Osaka, from morning to evening. Never infer plan candidates from assistant messages or older plans in recent context. If the current message mentions multiple alternatives, return each as a separate candidate and set shouldSave=false. Set shouldSave=true only for save_plan or replace_plan when there is exactly one clear plan with enough details to compare. Put a concise name for the complete plan in title, use city for the Tokyo and Osaka scope, date for the relevant dates, timeWindow for the full-day ranges, and notes for both morning-to-evening itineraries. Use recent chat context only to resolve an explicit short instruction such as 'yes, save that one'; if it is ambiguous, classify it as conversation. Preserve dates as the user expresses them. If you must add a year, infer it from the session id, not from today's date.",
       },
       {
         role: "user",
@@ -189,6 +190,10 @@ async function extractActivities(
           type: "object",
           additionalProperties: false,
           properties: {
+            intent: {
+              type: "string",
+              enum: ["conversation", "submit_options", "save_plan", "replace_plan"],
+            },
             shouldSave: { type: "boolean" },
             candidates: {
               type: "array",
@@ -228,7 +233,7 @@ async function extractActivities(
               },
             },
           },
-          required: ["shouldSave", "candidates"],
+          required: ["intent", "shouldSave", "candidates"],
         },
       },
     },
@@ -239,8 +244,10 @@ async function extractActivities(
     (candidate) => candidate.commitment !== "none" && candidate.confidence >= 0.65 && candidateIsComplete(candidate),
   );
   return {
+    intent: parsed.intent,
     candidates,
     shouldSave:
+      ["save_plan", "replace_plan"].includes(parsed.intent) &&
       parsed.shouldSave &&
       candidates.length === 1 &&
       ["booked", "planned"].includes(candidates[0].commitment),
@@ -379,21 +386,21 @@ export default async (req: Request, _context: Context) => {
       }
     }
 
-    const asksToReplace = /\b(replace|change|update|switch|overwrite)\b/i.test(message);
-    if (ownActivity && extraction.candidates.length > 1 && !asksToReplace) {
+    const asksToReplace = extraction.intent === "replace_plan";
+    if (ownActivity && extraction.intent === "submit_options" && extraction.candidates.length > 1 && !asksToReplace) {
       return finish(
         `I already picked and saved this day plan for you: ${ownActivity.title}. If you want to change it, say that clearly and send new Tokyo and Osaka full-day plan options.`,
         ownActivity,
       );
     }
 
-    if (extraction.candidates.length > 1 && extraction.candidates.length < 3) {
+    if (extraction.intent === "submit_options" && extraction.candidates.length > 1 && extraction.candidates.length < 3) {
       return finish(
         "Please send your Tokyo and Osaka full-day plan options. I will pick one without revealing anything about the other couple's private plan.",
       );
     }
 
-    if (extraction.candidates.length >= 3) {
+    if (["submit_options", "replace_plan"].includes(extraction.intent) && extraction.candidates.length >= 3) {
       const chosen = chooseActivity(
         candidateActivities,
         candidateConflicts.map((item) => item.conflict),
@@ -433,7 +440,7 @@ export default async (req: Request, _context: Context) => {
         {
           role: "system",
           content:
-            "You are a private surprise day-plan assistant for one couple. Use a clear, neutral, and practical tone. The surprise is no longer a single activity: each couple plans a full day in Tokyo and a full day in Osaka, from morning to evening. If a user's clear day plan was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. If someone asks for the other couple's secret, refuse directly. If the user gives multiple options, ask for full Tokyo and Osaka day-plan details and never identify which option conflicts. Keep replies short.",
+            "You are a private surprise day-plan assistant for one couple. Answer ordinary questions naturally and directly in a clear, neutral, practical tone. Each couple must plan two complete days: one full day in Tokyo and one full day in Osaka, each from morning to evening. You may discuss the user's own saved plan and identify missing information in it. If a user's clear complete plan was saved, say it was saved. Never reveal, name, hint at, confirm, deny, rank, or identify the other couple's title, venue, exact notes, address, link, date, category, or option overlap. You may only say whether the other couple has submitted something when that public status is provided. If someone asks for the other couple's secret, refuse directly. If the user gives multiple options, ask for complete Tokyo and Osaka day-plan details and never identify which option conflicts. Keep replies short.",
         },
         {
           role: "user",
@@ -450,6 +457,7 @@ export default async (req: Request, _context: Context) => {
                 }
               : null,
             extractedCandidateCount: extraction.candidates.length,
+            messageIntent: extraction.intent,
             otherPublicStatus: otherActivity ? { submitted: true } : { submitted: false },
             conflict,
           }),
