@@ -103,7 +103,7 @@ function extractRequestedNewCode(message: string, allowBareCode = false) {
   return match?.[1] ?? null;
 }
 
-function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) {
+function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean, ownActivity: Activity | null) {
   const couple = pair === "hj" ? "Hesam and Jana" : "Christian and Meike";
   if (usedDefaultCode) {
     const otherCouple = pair === "hj" ? "Christian and Meike" : "Hesam and Jana";
@@ -111,6 +111,17 @@ function accessConfirmedReply(pair: Activity["pair"], usedDefaultCode: boolean) 
       `Success. Access confirmed for ${couple}.`,
       "",
       `Please choose a new private code, so ${otherCouple} cannot peek at what you have planned. Make sure the code has no whitespace. Example: NewCode12!@`,
+    ].join("\n");
+  }
+
+  if (ownActivity) {
+    return [
+      `Success. Welcome back, ${couple}.`,
+      "",
+      "You already have a saved day plan:",
+      describeOwnActivity(ownActivity),
+      "",
+      "You can ask me about this plan or tell me clearly if you want to replace it.",
     ].join("\n");
   }
 
@@ -319,8 +330,10 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    let ownActivity = await getActivity(auth.sessionId, auth.pair);
+
     if (isAccessOnlyMessage(message, body.accessCode)) {
-      return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode));
+      return finish(accessConfirmedReply(auth.pair, auth.usedDefaultCode, ownActivity), ownActivity);
     }
 
     const requestedNewCode = extractRequestedNewCode(message, auth.usedDefaultCode);
@@ -355,7 +368,6 @@ export default async (req: Request, _context: Context) => {
     }
 
     const otherActivity = await getActivity(auth.sessionId, otherPair(auth.pair));
-    let ownActivity = await getActivity(auth.sessionId, auth.pair);
     let conflict = await compareActivities(ownActivity, otherActivity);
 
     if (isSecretFishing(message, auth.pair)) {
